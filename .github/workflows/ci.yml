@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    name: Backend (lint, typecheck, test)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: secureledger
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: secureledger_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U secureledger"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+    defaults:
+      run:
+        working-directory: ./backend
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install uv
+        run: pip install uv
+      - name: Install deps
+        run: uv pip install --system -e ".[dev]"
+      - name: Lint (ruff)
+        run: ruff check app tests
+      - name: Format check (ruff)
+        run: ruff format --check app tests
+      - name: Typecheck (mypy)
+        run: mypy app
+      - name: Run tests
+        env:
+          DATABASE_URL: postgresql+asyncpg://secureledger:test@localhost:5432/secureledger_test
+          REDIS_URL: redis://localhost:6379/0
+          JWT_SECRET_KEY: test_secret_key_for_ci_only_not_for_production_use
+          FERNET_KEY: dGVzdF9mZXJuZXRfa2V5XzMyX2J5dGVzX2xvbmdfdGVzdF8=
+          PLAID_CLIENT_ID: test
+          PLAID_SECRET: test
+          PLAID_ENV: sandbox
+        run: pytest -v
+
+  frontend:
+    name: Frontend (lint, typecheck, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 9
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - name: Install
+        run: pnpm install --frozen-lockfile || pnpm install
+      - name: Lint
+        run: pnpm lint
+      - name: Typecheck
+        run: pnpm tsc --noEmit
+      - name: Build
+        run: pnpm build
