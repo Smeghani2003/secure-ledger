@@ -36,8 +36,10 @@ export function useSyncMutation() {
     mutationFn: () =>
       api<SyncResponse>("/api/plaid/sync", { method: "POST", token }),
     onSuccess: () => {
-      // refresh the dashboard's account list to reflect newly-synced data
+      // refresh every dashboard query that depends on synced data
       queryClient.invalidateQueries({ queryKey: ["accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["spending"] });
     },
   });
 }

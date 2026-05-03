@@ -45,3 +45,20 @@ logs/
 
 # Alembic local
 backend/alembic/versions/*.bak
+.pnpm-store/
+# pnpm
+.pnpm-store/
+.pnpm-debug.log*
+
+# Frontend build artifacts
+frontend/dist/
+frontend/.vite/
+
+# Backend caches
+backend/.pytest_cache/
+backend/.mypy_cache/
+backend/.ruff_cache/
+
+# Docker volume mounts (just in case)
+postgres-data/
+redis-data/
