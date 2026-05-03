@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 
-from sqlalchemy import ForeignKey, LargeBinary, String
+from sqlalchemy import DateTime, ForeignKey, LargeBinary, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -26,3 +27,10 @@ class PlaidItem(Base, UUIDMixin, TimestampMixin):
     access_token_ciphertext: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     encryption_key_version: Mapped[int] = mapped_column(default=1, nullable=False)
     status: Mapped[str] = mapped_column(String(32), default="active", nullable=False)
+
+    # Plaid /transactions/sync state.
+    # transactions_cursor is opaque — never parse it, just round-trip it.
+    transactions_cursor: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    last_synced_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
