@@ -26,17 +26,28 @@ A security-first personal finance aggregator. Connects to banks via **Plaid**, s
 - **Frontend**: React 18, TypeScript, Vite, Tailwind, TanStack Query, react-plaid-link
 - **Bank data**: Plaid sandbox
 
-## What's in this repo (Week 1 scope)
+## What's in this repo
 
-- Signup / login / refresh / `/me` (JWT)
-- Plaid Link token endpoint
-- Plaid public-token exchange with **encrypted-at-rest** access-token storage
-- Accounts list endpoint (read-only stub for Week 2 sync)
-- React frontend with login, signup, and dashboard pages
-- docker-compose with Postgres + Redis + backend + frontend
-- GitHub Actions CI: ruff + mypy + pytest (backend); eslint + tsc + vite build (frontend)
+**Auth & user management**
+- Signup / login / refresh / `/me` with JWT access (15min) + refresh (30day) tokens
+- Passwords hashed with bcrypt + manual SHA-256 prehash (sidesteps bcrypt's 72-byte limit without truncation; same approach Django and Supabase use)
 
-Week 2 adds: account & transaction sync, dashboard with transactions and spending charts, public deploy to Fly.io.
+**Plaid integration**
+- Link token creation and public-token exchange against Plaid sandbox
+- Plaid access tokens **encrypted at rest** with Fernet (AES-128-CBC + HMAC-SHA256), with `encryption_key_version` column for future key rotation
+- Accounts + transactions sync via Plaid's cursor-based `/transactions/sync` — first call returns the historical window, subsequent calls return only what changed since the persisted cursor
+- Idempotent upserts: handles Plaid's `added` / `modified` / `removed` transaction lists correctly; safe to call repeatedly
+
+**Frontend**
+- React 18 + TypeScript + Vite + Tailwind
+- TanStack Query for server-state caching, React Router for navigation
+- Plaid Link integration via `react-plaid-link`
+
+**Dev infrastructure**
+- docker-compose: Postgres 16 + Redis 7 + backend + frontend, all wired up with healthchecks
+- Alembic migrations checked in, applied automatically on backend start
+- GitHub Actions CI: `ruff` + `mypy --strict` + `pytest` (backend); `eslint` + `tsc --noEmit` + `vite build` (frontend)
+- Full setup runbook in [SETUP.md](./SETUP.md)
 
 ## Quick start
 
@@ -114,26 +125,58 @@ cd backend && pytest -v
 cd frontend && pnpm tsc --noEmit && pnpm lint && pnpm build
 ```
 
-## Security model (TL;DR — see SECURITY.md, coming Week 2)
+## API surface
 
-- Passwords: bcrypt, never logged.
-- JWTs: 15-min access tokens; 30-day refresh tokens; type-tagged.
-- Plaid access tokens: never stored in plaintext. Fernet-encrypted in `plaid_items.access_token_ciphertext` with `encryption_key_version` for rotation.
-- CORS: only configured origins.
-- Input validation: every request through Pydantic.
-- (V2) Rate limiting in Redis, audit log middleware, RBAC for households, OIDC self-hosted auth.
+Interactive docs at `http://localhost:8000/docs` (Swagger UI) once the stack is running.
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| `POST` | `/api/auth/signup` | — | Create account, returns access + refresh JWTs |
+| `POST` | `/api/auth/login` | — | Returns access + refresh JWTs on valid credentials |
+| `POST` | `/api/auth/refresh` | refresh JWT | Mint a new access token from a refresh token |
+| `GET` | `/api/auth/me` | access JWT | Current user profile |
+| `POST` | `/api/plaid/link-token` | access JWT | Create a Plaid Link token for the SPA |
+| `POST` | `/api/plaid/exchange` | access JWT | Exchange a public token; encrypts and stores the access token |
+| `POST` | `/api/plaid/sync` | access JWT | Pull accounts + transaction deltas for every linked bank |
+| `GET` | `/api/accounts` | access JWT | List the current user's accounts with balances |
+| `GET` | `/healthz` | — | Liveness probe |
+
+## Security model
+
+This is the headline feature of the project — the design choices below are deliberate and justifiable in an interview.
+
+**Password storage.** Bcrypt with a manual SHA-256 prehash. Bcrypt has a hard 72-byte input limit and (in 4.x) raises rather than truncates; SHA-256 prehashing produces a fixed 32-byte digest, base64-encoded to 44 printable bytes — well under the limit, with no entropy loss and no truncation collisions. Passwords are never logged.
+
+**JWT design.** Access tokens are 15 minutes; refresh tokens are 30 days. Both are HS256-signed and tagged with a `type` claim (`access` or `refresh`); the decoder rejects tokens of the wrong type, so a refresh token can never be used as an access token even if leaked.
+
+**Plaid access tokens at rest.** A Plaid access token, once issued, persists for the lifetime of the linked institution and grants ongoing read access to the user's financial data. We never store it in plaintext. On exchange, the token is encrypted with **Fernet** (AES-128-CBC + HMAC-SHA256) and stored as `plaid_items.access_token_ciphertext`. The `encryption_key_version` column tags every row with the key it was encrypted under, so future key rotation can re-encrypt rows incrementally without downtime.
+
+**Verify the encryption claim** with a quick `psql` query:
+
+```sql
+SELECT institution_name, encryption_key_version, length(access_token_ciphertext) AS bytes
+FROM plaid_items;
+```
+
+You'll see the institution name in cleartext (it's not sensitive) and only the byte length of the ciphertext — Postgres has the encrypted blob, but it's meaningless without the Fernet key from the `.env`. Dump the database, you can't replay the token.
+
+**Other defenses.** CORS allowlist (configured origins only), Pydantic v2 validates every request body, all secrets read from environment (never committed), `.gitignore` blocks `.env` from being committed.
+
+**V2 hardening (not yet built).** Redis-backed rate limiting on auth endpoints, audit log middleware, RBAC for shared households, and self-hosted OIDC to remove the dependency on a single JWT secret.
 
 ## Status
 
 | Area | Status |
 |---|---|
-| Auth (JWT) | ✅ Week 1 |
-| Plaid link / exchange | ✅ Week 1 |
-| Accounts/transactions sync | 🚧 Week 2 |
-| Categorization (Claude) | 🚧 Week 2 |
-| Spending reports | 🚧 Week 2 |
-| Public deploy (Fly.io) | 🚧 Week 2 |
-| RBAC + audit log | 📋 V2 |
+| Auth (signup / login / refresh / `/me`) | ✅ Done |
+| Plaid Link + token exchange | ✅ Done |
+| Encrypted-at-rest access tokens | ✅ Done |
+| Accounts + transactions sync (`POST /api/plaid/sync`) | ✅ Done |
+| Auto-sync on link + manual refresh button | 🚧 In progress |
+| Dashboard: balances, transactions list, spend chart | 🚧 In progress |
+| Public deploy (Fly.io) | 🚧 In progress |
+| AI transaction categorization (Claude) | 📋 V2 |
+| RBAC + households + audit log | 📋 V2 |
 | Self-hosted OIDC | 📋 V2 |
 
 ## License
