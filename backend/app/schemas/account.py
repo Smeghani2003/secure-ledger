@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date as Date
+from datetime import date as Date, datetime
 
 from pydantic import BaseModel
 
@@ -18,8 +18,8 @@ class AccountResponse(BaseModel):
     currency: str
     current_balance_cents: int | None
     available_balance_cents: int | None
-
-    model_config = {"from_attributes": True}
+    institution_name: str | None
+    last_synced_at: datetime | None
 
 
 class TransactionResponse(BaseModel):
