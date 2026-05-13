@@ -1,4 +1,6 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+// Dev: VITE_API_BASE_URL is set in .env to http://localhost:8000 (cross-origin).
+// Prod: backend serves frontend assets, so empty string = same-origin requests.
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 
 type Json = Record<string, unknown> | unknown[];
 

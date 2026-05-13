@@ -1,0 +1,38 @@
+app = "secureledger"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  APP_ENV = "production"
+  APP_PORT = "8080"
+  PLAID_ENV = "sandbox"
+  PLAID_PRODUCTS = "transactions"
+  PLAID_COUNTRY_CODES = "US"
+  ACCESS_TOKEN_EXPIRE_MINUTES = "15"
+  REFRESH_TOKEN_EXPIRE_DAYS = "30"
+  JWT_ALGORITHM = "HS256"
+  # Same-origin in prod, so the only origin we need to allow is ourselves.
+  # Set the actual deployed URL via `fly secrets set` after first deploy if
+  # you change the app name.
+  CORS_ORIGINS = "https://secureledger.fly.dev"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/healthz"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512
