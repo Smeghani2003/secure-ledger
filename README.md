@@ -1,8 +1,10 @@
 # SecureLedger
 
-A security-first personal finance aggregator. Connects to banks via **Plaid**, stores access tokens **encrypted at rest**, and runs on a clean modern stack: **FastAPI + Postgres + Redis + React/TypeScript**.
+A security-first personal finance aggregator. Connects to banks via **Plaid**, stores access tokens **encrypted at rest**, and runs on a clean modern stack: **FastAPI + Postgres + React/TypeScript**.
 
-> Portfolio project — designed to demonstrate identity, access governance, and secure data handling on a contemporary Python + TypeScript stack.
+🔗 **Live demo:** [secureledger.fly.dev](https://secureledger.fly.dev) — sign up with any email and a 12+ character password, then click **Link a bank** and use Plaid sandbox creds `user_good` / `pass_good`.
+
+> Portfolio project — designed to demonstrate identity, access governance, and secure data handling on a contemporary Python + TypeScript stack. Deployed on Fly.io with managed Postgres.
 
 ---
 
@@ -172,9 +174,9 @@ You'll see the institution name in cleartext (it's not sensitive) and only the b
 | Plaid Link + token exchange | ✅ Done |
 | Encrypted-at-rest access tokens | ✅ Done |
 | Accounts + transactions sync (`POST /api/plaid/sync`) | ✅ Done |
-| Auto-sync on link + manual refresh button | 🚧 In progress |
-| Dashboard: balances, transactions list, spend chart | 🚧 In progress |
-| Public deploy (Fly.io) | 🚧 In progress |
+| Auto-sync on link + manual refresh button | ✅ Done |
+| Dashboard: balances, transactions list, spend chart | ✅ Done |
+| Public deploy (Fly.io + managed Postgres) | ✅ Done |
 | AI transaction categorization (Claude) | 📋 V2 |
 | RBAC + households + audit log | 📋 V2 |
 | Self-hosted OIDC | 📋 V2 |
